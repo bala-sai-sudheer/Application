@@ -78,17 +78,35 @@ $reqStmt = $conn->prepare(
      WHERE r.requester_id = ?
      ORDER BY r.created_at DESC"
 );
+
 $reqStmt->bind_param("i", $userId);
 $reqStmt->execute();
 $reqResult = $reqStmt->get_result();
 
-/* Map donor_id → latest request */
-$requestedDonors = [];
-foreach ($reqResult->fetch_all(MYSQLI_ASSOC) as $row) {
-    $requestedDonors[$row['donor_id']] = $row;
-}
-$reqResult->data_seek(0);
-?>
+/*
+|--------------------------------------------------------------------------
+| Store ALL requests
+|--------------------------------------------------------------------------
+*/
+$requestedDonors = $reqResult->fetch_all(MYSQLI_ASSOC);
+
+/*
+|--------------------------------------------------------------------------
+| Create donor map for search button logic
+| Keeps only latest request per donor
+|--------------------------------------------------------------------------
+*/
+$requestedDonorMap = [];
+
+foreach ($requestedDonors as $row) {
+
+    if (
+        !isset($requestedDonorMap[$row['donor_id']]) ||
+        $row['id'] > $requestedDonorMap[$row['donor_id']]['id']
+    ) {
+        $requestedDonorMap[$row['donor_id']] = $row;
+    }
+}?>
 <!DOCTYPE html>
 <html>
 <head>
@@ -189,7 +207,7 @@ foreach ($groups as $g) {
 <td><?= maskPhone($r['phone']) ?></td>
 <td>
 <?php
-$req = $requestedDonors[$r['id']] ?? null;
+$req = $requestedDonorMap[$r['id']] ?? null;
 ?>
 <?php if ($req && $req['status'] === 'Pending'): ?>
     <button class="btn btn-secondary btn-sm" disabled>Request Pending</button>
